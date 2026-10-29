@@ -478,7 +478,8 @@ ul,ol{padding:0;list-style:none}
   .cue{display:none}
 }
 @media (max-width:760px){
-  :root{--run:2.3;--ov:54vh}
+  :root{--run:1.7;--ov:50vh}
+  .win-track{height:calc(var(--vh) * 2.1)}
   body{font-size:14.5px}
   .top{padding:14px 16px;gap:12px}
   .logo{width:120px;height:31px}
@@ -1071,6 +1072,7 @@ function siteMotion(root, opt) {
   function c01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
   function oc(t) { return 1 - Math.pow(1 - t, 3); }
   function io(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function smooth(t) { return t * t * (3 - 2 * t); }
   function px(v) { return v.toFixed(1) + 'px'; }
   function n4(v) { return v.toFixed(4); }
   function css(el, p, v) {
@@ -1088,7 +1090,7 @@ function siteMotion(root, opt) {
   if (host.classList) host.classList.toggle('touch', TOUCH);
 
   /* ---------- geometry ---------- */
-  var M = { vh: 0, statik: false, sc: null, tau: 0 }, y = 0, raf = 0, last = 0;
+  var M = { vh: 0, statik: false, sc: null, tau: 0, top: 0 }, y = 0, raf = 0, last = 0;
   function scroller() {
     var el = main.parentElement;
     while (el && el !== d.body && el !== de) {
@@ -1106,7 +1108,7 @@ function siteMotion(root, opt) {
     if (!probe && d.body) { probe = d.createElement('div'); probe.setAttribute('aria-hidden', 'true'); probe.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:100vh;visibility:hidden;pointer-events:none;z-index:-1'; d.body.appendChild(probe); }
     return (probe && probe.offsetHeight) || W.innerHeight;
   }
-  function readY() { return vpTop() - main.getBoundingClientRect().top; }
+  function readY() { return M.sc ? vpTop() - main.getBoundingClientRect().top : (W.pageYOffset || de.scrollTop || 0) - M.top; }
   function curScroll() { return M.sc ? M.sc.scrollTop : (W.pageYOffset || de.scrollTop || 0); }
   /* layout offset from the top of .main (ignores transforms) */
   function offTop(el) { var t = 0; while (el && el !== main) { t += el.offsetTop; el = el.offsetParent; } return t; }
@@ -1318,7 +1320,7 @@ function siteMotion(root, opt) {
     if (!w.sec) return;
     var st = w.top - y;
     if (st > vh + 40 || st + w.dist + vh < -40) return;
-    var p = c01(-st / w.dist), open = io(c01((p - 0.04) / 0.58)), s = w.s0 * Math.pow(1 / w.s0, open);
+    var p = c01(-st / w.dist), open = (TOUCH ? smooth : io)(c01((p - 0.04) / 0.58)), s = w.s0 * Math.pow(1 / w.s0, open);
     css(w.port, 'transform', open >= 1 ? 'none' : 'scale(' + n4(s) + ')');
     css(w.view, 'transform', open >= 1 ? 'none' : 'scale(' + n4(1 / s) + ')');
     css(w.ring, 'transform', 'scale(' + n4(s) + ')');
@@ -1543,6 +1545,7 @@ function siteMotion(root, opt) {
   }
   function measureAll() {
     M.vh = viewH(); RZ.w = W.innerWidth; RZ.h = M.vh;
+    M.top = M.sc ? 0 : main.getBoundingClientRect().top + curScroll();
     var was = M.statik;
     M.statik = M.vh >= 1500;
     if (M.statik && !was) clearMotion();
@@ -1611,6 +1614,8 @@ function mq(q){try{return matchMedia(q);}catch(e){return {matches:false};}}
 var fineQ=mq('(hover: hover) and (pointer: fine)'),mobQ=mq('(max-width: 760px)');
 /* the scroll itself already glides (smooth wheel, or the finger's own momentum); progress only eases where nothing else does */
 var glide=fineQ.matches&&mq('(prefers-reduced-motion: reduce)').matches;
+/* with a finger the reveal follows at once; the slow-start curve is kept for the wheel */
+var ease=fineQ.matches?function(t){return io(t);}:function(t){return sm(t);};
 
 /* ---------- data (prices from alnidaatours.com, 29 Oct 2026) ---------- */
 var GROUPS='https://alnidaatours.com/groups?groupId=';
@@ -1710,7 +1715,7 @@ function placeOrbit(o,ui){
 var lastS=0;
 function render(p,mx,my){
   var t1=c01((p-T[0][0])/(T[0][1]-T[0][0])),t2=c01((p-T[1][0])/(T[1][1]-T[1][0]));
-  var r1=io(t1),r2=io(t2),s=r1+r2,e=sm(c01((p-E0)/(1-E0))),ui=1-sm(c01(e*2.4)),vh=M.vh,i;
+  var r1=ease(t1),r2=ease(t2),s=r1+r2,e=sm(c01((p-E0)/(1-E0))),ui=1-sm(c01(e*2.4)),vh=M.vh,i;
   lastS=s;
   var o=orbitLayout(s);placeOrbit(o,ui);
   var rev=[1,r1,r2],life=[c01(p/T[0][1]),c01((p-T[0][0])/(T[1][1]-T[0][0])),c01((p-T[1][0])/(1-T[1][0]))],vis=[r1<1,r1>0&&r2<1,r2>0];
