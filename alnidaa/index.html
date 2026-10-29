@@ -36,6 +36,7 @@
 }
 *,*::before,*::after{box-sizing:border-box}
 html{background:var(--canvas);-webkit-text-size-adjust:100%;scrollbar-gutter:stable}
+@media (hover:none) and (pointer:coarse){html{background:var(--ink)}}
 html.lock{overflow:hidden}
 body{margin:0;font-family:'Noto Kufi Arabic',system-ui,sans-serif;font-size:15px;line-height:1.75;color:var(--ink);background:var(--canvas);overflow-x:clip}
 img{display:block;max-width:100%}
@@ -193,7 +194,7 @@ ul,ol{padding:0;list-style:none}
 .mini .lk{padding:8px 14px;border-radius:var(--r-in);font-size:14px;font-weight:500;color:var(--ink-3);transition:background .2s,color .2s}
 .mini .lk:hover{color:var(--ink)}
 .mini .lk.on{color:var(--ink);background:var(--brand-tint)}
-.mini .cta{margin-inline-start:6px;padding:9px 18px;border-radius:var(--r-in);background:var(--brand-deep);color:#fff;font-size:14px;font-weight:600;transition:background .2s,transform .16s var(--out)}
+.mini .cta{margin-inline-start:6px;padding:9px 18px;white-space:nowrap;border-radius:var(--r-in);background:var(--brand-deep);color:#fff;font-size:14px;font-weight:600;transition:background .2s,transform .16s var(--out)}
 .mini .cta:hover{background:#155748}
 .mini .cta:active,.s-go:active,.book:active,.d-cta:active,.badge:active{transform:scale(.97)}
 
@@ -509,8 +510,10 @@ ul,ol{padding:0;list-style:none}
   .f-lab{font-size:14px}
   .s-go{height:48px}
   .s-go span{display:inline}
-  .mini{top:10px;padding:5px}
-  .mini .logo{width:96px;height:26px;margin-inline:10px 6px}
+  .mini{top:0;left:0;right:0;justify-content:space-between;gap:12px;padding-block:10px;padding-inline:16px 10px;border-radius:0 0 18px 18px;background:rgba(20,33,30,.97);box-shadow:0 16px 32px -24px rgba(0,0,0,.6);transform:translate3d(0,-115%,0)}
+  .mini.show{transform:translate3d(0,0,0)}
+  .mini .logo{width:108px;height:29px;margin:0;color:#fff}
+  .mini .cta,.mini .cta:hover{margin:0;padding:10px 18px;background:var(--brand);color:var(--ink);font-size:14.5px}
   .offers{margin-top:30px;padding-bottom:96px}
   .grid.rail{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:78%;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;margin-inline:calc(-1*var(--pad));padding:0 var(--pad) 6px;scroll-padding-inline:var(--pad);scrollbar-width:none}
   .grid.rail::-webkit-scrollbar{display:none}
@@ -547,6 +550,15 @@ ul,ol{padding:0;list-style:none}
   .d-thumbs img{border-radius:var(--r-in)}
   .d-inc{grid-template-columns:1fr}
 }
+/* touch screens: what travels with the page eases in by itself instead of being scrubbed by script, so it never trails the finger */
+.touch .ticket{opacity:0;transform:translate3d(0,56px,0) scale(.95);transition:opacity .7s var(--out),transform 1s var(--ease-out2);transition-delay:calc(var(--c,0) * 90ms)}
+.touch .ticket.tin{opacity:1;transform:none}
+.touch .board-sheet{transform:scale(.94);transition:transform 1.1s var(--ease-out2)}
+.touch .board.is-in .board-sheet{transform:none}
+.touch .app .phone{transform:translate3d(0,80px,0) rotateX(12deg);transition:transform 1.2s var(--ease-out2)}
+.touch .app.tin .phone{transform:none}
+.touch .foot-mark span{transform:translate3d(0,56px,0) scale(.92);transition:transform 1.3s var(--ease-out2)}
+.touch .foot.in .foot-mark span{transform:none}
 /* a frame taller than any real screen (design canvas overview) shows the page without the scroll run */
 @media (min-height:1500px){:root{--vh:1000px;--run:0;--ov:200px}}
 /* no scroll choreography in the tall overview frame: every section shows its settled state. */
@@ -1067,6 +1079,9 @@ function siteMotion(root, opt) {
   var mobQ = mq('(max-width: 760px)'), deskQ = mq('(min-width: 1101px)');
   var main = $('.main');
   if (!main) return { destroy: function () {}, measure: function () {} };
+  /* touch screens scroll on the compositor: script-driven motion there is kept to pinned scenes */
+  var TOUCH = !fineQ.matches, host = root.documentElement || root;
+  if (host.classList) host.classList.toggle('touch', TOUCH);
 
   /* ---------- geometry ---------- */
   var M = { vh: 0, statik: false, sc: null, tau: 0 }, y = 0, raf = 0, last = 0;
@@ -1080,7 +1095,13 @@ function siteMotion(root, opt) {
     return null;
   }
   function vpTop() { return M.sc ? M.sc.getBoundingClientRect().top : 0; }
-  function viewH() { return M.sc ? M.sc.clientHeight : W.innerHeight; }
+  /* the page's own 100vh (the large viewport on phones), so a browser bar sliding in or out changes nothing */
+  var probe = null;
+  function viewH() {
+    if (M.sc) return M.sc.clientHeight;
+    if (!probe && d.body) { probe = d.createElement('div'); probe.setAttribute('aria-hidden', 'true'); probe.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:100vh;visibility:hidden;pointer-events:none;z-index:-1'; d.body.appendChild(probe); }
+    return (probe && probe.offsetHeight) || W.innerHeight;
+  }
   function readY() { return vpTop() - main.getBoundingClientRect().top; }
   function curScroll() { return M.sc ? M.sc.scrollTop : (W.pageYOffset || de.scrollTop || 0); }
   /* layout offset from the top of .main (ignores transforms) */
@@ -1170,13 +1191,19 @@ function siteMotion(root, opt) {
     lefts.sort(function (a, b) { return b - a; });
     var rail = getComputedStyle(grid).overflowX !== 'visible';
     shown.forEach(function (t, i) {
-      var media = $('.t-media', t);
-      OF.push({ el: t, ph: $('.t-ph', t), top: offTop(t), h: t.offsetHeight, mh: media ? media.offsetHeight : 300, col: rail ? Math.min(i, 3) : Math.max(0, lefts.indexOf(Math.round(t.offsetLeft))) });
+      var media = $('.t-media', t), col = rail ? Math.min(i, 3) : Math.max(0, lefts.indexOf(Math.round(t.offsetLeft)));
+      if (TOUCH) t.style.setProperty('--c', col);
+      OF.push({ el: t, ph: $('.t-ph', t), top: offTop(t), h: t.offsetHeight, mh: media ? media.offsetHeight : 300, col: col, tin: t.classList.contains('tin') });
     });
   }
   function updateOffers(vh) {
     for (var i = 0; i < OF.length; i++) {
       var o = OF[i], st = o.top - y;
+      if (TOUCH) {
+        if (!o.tin && st < vh * 0.9 && st + o.h > 0) { o.tin = true; o.el.classList.add('tin'); }
+        else if (o.tin && st > vh + 40) { o.tin = false; o.el.classList.remove('tin'); }
+        continue;
+      }
       if (st > vh + 60 || st + o.h < -60) continue;
       var e = c01((vh - st - o.col * vh * 0.055) / (vh * 0.4)), ee = oc(e);
       css(o.el, 'transform', e >= 1 ? 'none' : 'translate3d(0,' + px((1 - ee) * 110) + ',0) scale(' + n4(0.93 + 0.07 * ee) + ')');
@@ -1206,6 +1233,8 @@ function siteMotion(root, opt) {
     later(function () {
       leaving.forEach(function (t) { t.getAnimations().forEach(function (a) { a.cancel(); }); });
       grid.setAttribute('data-filter', f);
+      /* on touch screens the cards that stay or arrive are already in place; the animation below brings them in */
+      if (TOUCH) tickets.forEach(function (t) { if (matchF(t, f)) t.classList.add('tin'); });
       measureAll();
       var k = 0;
       tickets.forEach(function (t, i) {
@@ -1253,6 +1282,7 @@ function siteMotion(root, opt) {
     if (st > vh + 40 || st + BD.h < -40) return;
     /* safety net: switch the board on from the scroll loop too, in case the observer missed the crossing */
     if (!board.__in && st < vh * 0.75 && st + BD.h > vh * 0.25) boardIn(true);
+    if (TOUCH) return;
     var e = c01((vh - st) / (vh * 0.8));
     css(sheet, 'transform', e >= 1 ? 'none' : 'scale(' + n4(0.9 + 0.1 * oc(e)) + ')');
   }
@@ -1398,9 +1428,13 @@ function siteMotion(root, opt) {
     var A = AP;
     if (!A.sec) return;
     var st = A.top - y;
+    if (TOUCH) {
+      if (!A.tin && st < vh * 0.85) { A.tin = true; A.sec.classList.add('tin'); }
+      else if (A.tin && st > vh + 40) { A.tin = false; A.sec.classList.remove('tin'); }
+    }
     if (st > vh + 40 || st + A.h < -40) return;
     var pre = c01((vh - st) / vh), pe = oc(pre), p = A.pin ? c01(-st / A.dist) : 0;
-    css(A.phone, 'transform', 'translate3d(0,' + px((1 - pe) * vh * 0.2) + ',0) rotateX(' + ((1 - pe) * 16).toFixed(2) + 'deg)');
+    if (!TOUCH) css(A.phone, 'transform', 'translate3d(0,' + px((1 - pe) * vh * 0.2) + ',0) rotateX(' + ((1 - pe) * 16).toFixed(2) + 'deg)');
     css(A.orb, 'transform', 'rotate(' + (-(pre * 40 + p * 110)).toFixed(2) + 'deg)');
     if (!A.pin) return;
     var a = p * 3.3, N = A.scrs.length, tin = [], j;
@@ -1435,13 +1469,13 @@ function siteMotion(root, opt) {
     if (rev <= 0 && FT.rev === 0) return;
     FT.rev = rev;
     css(fin, 'transform', FT.flat ? 'none' : 'translate3d(0,' + px((1 - e) * 70) + ',0)');
-    css(mark, 'transform', 'translate3d(0,' + px((1 - e) * 64) + ',0) scale(' + n4(0.9 + 0.1 * e) + ')');
+    if (!TOUCH) css(mark, 'transform', 'translate3d(0,' + px((1 - e) * 64) + ',0) scale(' + n4(0.9 + 0.1 * e) + ')');
     var inn = rev > 0.22;
     if (foot.__in !== inn) { foot.__in = inn; foot.classList.toggle('in', inn); }
   }
 
   /* ---------- floating bar: appears after the hero, hides while reading down ---------- */
-  var mini = $('.mini'), links = $$('.mini .lk'), MN = { show: false, lastY: 0, up: false, top: false, k: -2 };
+  var mini = $('.mini'), links = $$('.mini .lk'), MN = { show: false, lastY: 0, acc: 0, up: false, top: false, k: -2 };
   function measureMini() {
     var stage = $('.stage');
     MN.end = stage ? offTop(stage) + stage.offsetHeight : 0;
@@ -1449,7 +1483,9 @@ function siteMotion(root, opt) {
   }
   function updateMini(vh, ry) {
     if (!mini) return;
-    if (Math.abs(ry - MN.lastY) > 8) { MN.up = ry < MN.lastY; MN.lastY = ry; }
+    var dy = ry - MN.lastY; MN.lastY = ry;
+    if (dy) { if ((dy > 0) !== (MN.acc > 0)) MN.acc = 0; MN.acc += dy; }
+    if (MN.acc < -(TOUCH ? 56 : 8)) MN.up = true; else if (MN.acc > (TOUCH ? 24 : 8)) MN.up = false;
     var show = ry > MN.end - 90 && (MN.up || MN.top) && ry + vh < FT.mainH + FT.h * 0.4;
     if (show !== MN.show) { MN.show = show; mini.classList.toggle('show', show); }
     var k = -1;
@@ -1502,13 +1538,13 @@ function siteMotion(root, opt) {
     touched = [];
   }
   function measureAll() {
-    M.vh = viewH();
+    M.vh = viewH(); RZ.w = W.innerWidth; RZ.h = M.vh;
     var was = M.statik;
     M.statik = M.vh >= 1500;
     if (M.statik && !was) clearMotion();
     main.classList.toggle('statik', M.statik);
     measureOffers(); measureBoard(); measureWin(M.vh); measureSvc(M.vh); measureApp(M.vh); measureFoot(M.vh); measureMini();
-    if (M.statik) { boardIn(true); $$('[data-reveal]').forEach(function (el) { el.classList.add('in'); }); if (foot) foot.classList.add('in'); }
+    if (M.statik) { boardIn(true); $$('[data-reveal]').forEach(function (el) { el.classList.add('in'); }); if (foot) foot.classList.add('in'); tickets.forEach(function (t) { t.classList.add('tin'); }); if (AP.sec) AP.sec.classList.add('tin'); }
     y = readY();
     render();
   }
@@ -1525,15 +1561,16 @@ function siteMotion(root, opt) {
     raf = y !== ry ? requestAnimationFrame(tick) : 0;
   }
   function kick() { if (!raf) { last = 0; raf = requestAnimationFrame(tick); } }
-  var rz = 0;
+  var rz = 0, RZ = { w: 0, h: 0 };
   function relayout() { cancelAnimationFrame(rz); rz = requestAnimationFrame(function () { measureAll(); kick(); }); }
+  function onResize() { if (W.innerWidth === RZ.w && viewH() === RZ.h) return; relayout(); }
 
   M.sc = scroller();
   if (!reduceQ.matches && fineQ.matches && opt.smooth !== false) SW = smoothWheel();
   M.tau = SW || !fineQ.matches ? 0 : 80;
   on(W, 'scroll', kick, { passive: true });
   on(d, 'scroll', kick, { passive: true, capture: true });
-  on(W, 'resize', relayout);
+  on(W, 'resize', onResize);
   var ro = null;
   if ('ResizeObserver' in W) { ro = new ResizeObserver(relayout); ro.observe(main); obsv.push(ro); }
   observe();
@@ -1554,6 +1591,8 @@ function siteMotion(root, opt) {
       offs.forEach(function (f) { f(); }); timers.forEach(function (t) { clearTimeout(t); });
       obsv.forEach(function (o) { o.disconnect(); }); loops.forEach(function (el) { if (el.__cu) cancelAnimationFrame(el.__cu); });
       cancelAnimationFrame(raf); cancelAnimationFrame(rz); if (SW) SW.stop();
+      if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+      if (host.classList) host.classList.remove('touch');
     }
   };
 }
@@ -1566,6 +1605,8 @@ function $(s,e){return (e||d).querySelector(s);}
 function $$(s,e){return Array.prototype.slice.call((e||d).querySelectorAll(s));}
 function mq(q){try{return matchMedia(q);}catch(e){return {matches:false};}}
 var fineQ=mq('(hover: hover) and (pointer: fine)'),mobQ=mq('(max-width: 760px)');
+/* the scroll itself already glides (smooth wheel, or the finger's own momentum); progress only eases where nothing else does */
+var glide=fineQ.matches&&mq('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- data (prices from alnidaatours.com, 29 Oct 2026) ---------- */
 var GROUPS='https://alnidaatours.com/groups?groupId=';
@@ -1737,8 +1778,8 @@ function updateDock(){
 }
 function tick(now){
   var dt=last?Math.min(64,now-last):16;last=now;
-  var k=1-Math.exp(-dt/85);
-  cur+=(target-cur)*k;mx+=(tmx-mx)*k*0.5;my+=(tmy-my)*k*0.5;
+  var kp=1-Math.exp(-dt/85),k=glide?kp:1;
+  cur+=(target-cur)*k;mx+=(tmx-mx)*kp*0.5;my+=(tmy-my)*kp*0.5;
   if(Math.abs(target-cur)<0.0002)cur=target;
   var still=cur===target&&Math.abs(tmx-mx)<0.003&&Math.abs(tmy-my)<0.003;
   if(M.mode==='scroll')render(cur,mx,my);
@@ -1772,7 +1813,7 @@ addEventListener('scroll',onScroll,{passive:true});
 d.addEventListener('scroll',onScroll,{passive:true,capture:true});
 var rz=0;
 function relayout(){cancelAnimationFrame(rz);rz=requestAnimationFrame(function(){measure();readTarget();cur=target;if(M.mode==='scroll')render(cur,mx,my);else renderDiscrete();updateDock();});}
-addEventListener('resize',relayout);
+addEventListener('resize',function(){if(hero.clientWidth!==M.vw||hero.clientHeight!==M.vh)relayout();});
 if('ResizeObserver' in window)new ResizeObserver(relayout).observe(track);
 /* stop the cloud drift while the hero is off screen */
 if('IntersectionObserver' in window)new IntersectionObserver(function(es){hero.classList.toggle('away',!es[0].isIntersecting);}).observe(hero);
