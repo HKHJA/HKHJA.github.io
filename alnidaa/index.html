@@ -1251,6 +1251,8 @@ function siteMotion(root, opt) {
     if (!board) return;
     var st = BD.top - y;
     if (st > vh + 40 || st + BD.h < -40) return;
+    /* safety net: switch the board on from the scroll loop too, in case the observer missed the crossing */
+    if (!board.__in && st < vh * 0.75 && st + BD.h > vh * 0.25) boardIn(true);
     var e = c01((vh - st) / (vh * 0.8));
     css(sheet, 'transform', e >= 1 ? 'none' : 'scale(' + n4(0.9 + 0.1 * oc(e)) + ')');
   }
